@@ -1,17 +1,18 @@
 ﻿using System.Globalization;
 using System.Numerics;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace Simple.GpsCoordinates;
 
 /// <summary>
 /// GPS Coordinate with Latitude and Longitude
 /// </summary>
-public readonly struct GpsCoordinate<T> : IEquatable<GpsCoordinate<T>> where T : IFloatingPointIeee754<T> {
+public readonly partial struct GpsCoordinate<T> : IEquatable<GpsCoordinate<T>> where T : IFloatingPointIeee754<T> {
   /// <summary>
   ///  Earth Diameter in meters taken from Azure SDK, not from NASA
   /// </summary>
-  public static readonly T EarthDiameter = T.CreateSaturating(6378137 * 2.0);
+  public static readonly T EarthDiameter = T.CreateSaturating(6378137.0 * 2.0);
 
   /// <summary>
   /// Spatial Reference Identifier for GPS coordinates
@@ -96,7 +97,7 @@ public readonly struct GpsCoordinate<T> : IEquatable<GpsCoordinate<T>> where T :
       if (BitConverter.ToInt32(wktType) != WkbType) {
         Latitude = T.NaN;
         Longitude = T.NaN;
-        
+
         return;
       }
 
@@ -118,6 +119,34 @@ public readonly struct GpsCoordinate<T> : IEquatable<GpsCoordinate<T>> where T :
   public readonly void Deconstruct(out T latitude, out T longitude) {
     latitude = Latitude;
     longitude = Longitude;
+  }
+
+  /// <summary>
+  /// Create a new GPS coordinate from a WKB (Well Known Binary)
+  /// </summary>
+  /// <param name="wkb">Well Known Binary</param>
+  /// <returns>GPS Coordinate</returns>
+  public static GpsCoordinate<T> FromWkb(byte[] wkb) => new(wkb);
+
+  /// <summary>
+  /// Create a new GPS coordinate from a WKT (Well Known Text)
+  /// </summary>
+  /// <param name="wkt">Well Known Text</param>
+  /// <returns>GPS Coordinate</returns>
+  public static GpsCoordinate<T> FromWkt(string? wkt) {
+    if (string.IsNullOrWhiteSpace(wkt))
+      return None;
+
+    var match = WktRegex().Match(wkt);
+
+    if (!match.Success)
+      return None;
+
+    if (!T.TryParse(match.Groups["long"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var longitude) ||
+        !T.TryParse(match.Groups["lat"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var latitude))
+      return None;
+
+    return new GpsCoordinate<T>(latitude, longitude);
   }
 
   #endregion Constructors
@@ -153,7 +182,7 @@ public readonly struct GpsCoordinate<T> : IEquatable<GpsCoordinate<T>> where T :
   /// <summary>
   /// Check if the coordinate is valid
   /// </summary>
-  [JsonIgnore] 
+  [JsonIgnore]
   public readonly bool IsFinite => T.IsFinite(Latitude) && T.IsFinite(Longitude);
 
   /// <summary>
@@ -180,7 +209,9 @@ public readonly struct GpsCoordinate<T> : IEquatable<GpsCoordinate<T>> where T :
   /// </summary>
   /// <returns>WKT string representation</returns>
   public string ToWkt() {
-    return $"POINT ({Longitude.ToString("f6", CultureInfo.InvariantCulture)} {Latitude.ToString("f6", CultureInfo.InvariantCulture)})";
+    return IsFinite
+      ? $"POINT ({Longitude.ToString("f6", CultureInfo.InvariantCulture)} {Latitude.ToString("f6", CultureInfo.InvariantCulture)})"
+      : "POINT EMPTY";
   }
 
   /// <summary>
@@ -191,11 +222,11 @@ public readonly struct GpsCoordinate<T> : IEquatable<GpsCoordinate<T>> where T :
     var buffer = new byte[21];
 
     buffer[0] = BitConverter.IsLittleEndian ? (byte)1 : (byte)0; // Endianness
-    
+
     Buffer.BlockCopy(BitConverter.GetBytes(WkbType), 0, buffer, 1, 4); // WKB type
     Buffer.BlockCopy(BitConverter.GetBytes(double.CreateSaturating(Longitude)), 0, buffer, 5, 8);
     Buffer.BlockCopy(BitConverter.GetBytes(double.CreateSaturating(Latitude)), 0, buffer, 13, 8);
-    
+
     return buffer;
   }
 
@@ -243,6 +274,9 @@ public readonly struct GpsCoordinate<T> : IEquatable<GpsCoordinate<T>> where T :
 
     return EarthDiameter * T.Atan2(T.Sqrt(a), T.Sqrt(T.One - a));
   }
+
+  [GeneratedRegex(@"^\s*POINT\s*\(\s*(?<long>\S+)\s+(?<lat>\S+)\s*\)\s*$", RegexOptions.IgnoreCase, 1000)]
+  private static partial Regex WktRegex();
 
   #endregion Private Methods
 }
