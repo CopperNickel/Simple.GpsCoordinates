@@ -9,7 +9,7 @@ namespace Simple.GpsCoordinates;
 /// <summary>
 /// GPS Coordinate with Latitude and Longitude
 /// </summary>
-public readonly partial struct GpsCoordinate<T> : 
+public readonly partial struct GpsCoordinate<T> :
     IEquatable<GpsCoordinate<T>>,
     ISpanParsable<GpsCoordinate<T>>
 
@@ -163,13 +163,13 @@ public readonly partial struct GpsCoordinate<T> :
 
   #endregion Constructors
 
-    #region Operators
+  #region Operators
 
-    /// <summary>
-    /// Implicitly convert latitude and longitude tuple to a GPS coordinate
-    /// </summary>
-    /// <param name="point"></param>
-    public static implicit operator GpsCoordinate<T>((T latitude, T longitude) point) => new(point);
+  /// <summary>
+  /// Implicitly convert latitude and longitude tuple to a GPS coordinate
+  /// </summary>
+  /// <param name="point"></param>
+  public static implicit operator GpsCoordinate<T>((T latitude, T longitude) point) => new(point);
 
   /// <summary>
   /// Check if two GPS coordinates are equal
@@ -266,81 +266,97 @@ public readonly partial struct GpsCoordinate<T> :
   /// <returns>Hash code</returns>
   public readonly override int GetHashCode() => HashCode.Combine(Latitude, Longitude);
 
-    #endregion IEquatable<GpsCoordinate>
+  #endregion IEquatable<GpsCoordinate>
 
-    #region ISpanParsable<GpsCoordinate<T>>
+  #region ISpanParsable<GpsCoordinate<T>>
 
-    public static GpsCoordinate<T> Parse(ReadOnlySpan<char> s, IFormatProvider? provider)
-    {
-        if (TryParse(s, provider, out var result))
-        {
-            return result;
-        }
-
-        throw new FormatException($"Not a valid Gps Coordinate");
+  /// <summary>
+  /// Parse a GPS coordinate from a string
+  /// </summary>
+  /// <param name="s">String to parse</param>
+  /// <param name="provider">Format provider if any</param>
+  /// <returns>Gps Coordinate instance</returns>
+  /// <exception cref="FormatException">When string can't be parsed</exception>
+  public static GpsCoordinate<T> Parse(ReadOnlySpan<char> s, IFormatProvider? provider = default) {
+    if (TryParse(s, provider, out var result)) {
+      return result;
     }
 
-    public static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, [MaybeNullWhen(false)] out GpsCoordinate<T> result)
-    {
-        if (s.IsEmpty)
-        {
-            result = None;
-            return true;
-        }
+    throw new FormatException($"Not a valid Gps Coordinate");
+  }
 
-        if (TryFromWkt(s, out var latitude, out var longitude))
-        {
-            result = new GpsCoordinate<T>(latitude, longitude);
-
-            return true;
-        }
-
-        if (TryFromWkb(s, out latitude, out longitude))
-        {
-            result = new GpsCoordinate<T>(latitude, longitude);
-
-            return true;
-        }
-
-        if (TryFromValue(s, out latitude, out longitude))
-        {
-            result = new GpsCoordinate<T>(latitude, longitude);
-
-            return true;
-        }
-
-        result = None;
-
-        return false;
+  /// <summary>
+  /// Try to parse a GPS coordinate from a string
+  /// </summary>
+  /// <param name="s"></param>
+  /// <param name="provider"></param>
+  /// <param name="result"></param>
+  /// <returns></returns>
+  public static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, [MaybeNullWhen(false)] out GpsCoordinate<T> result) {
+    if (s.IsEmpty) {
+      result = None;
+      return true;
     }
 
-    public static GpsCoordinate<T> Parse(string s, IFormatProvider? provider)
-    {
-        if (s is null)
-        {
-            return None;
-        }
+    if (TryFromWkt(s, out var latitude, out var longitude)) {
+      result = new GpsCoordinate<T>(latitude, longitude);
 
-        return Parse(s.AsSpan(), provider);
+      return true;
     }
 
-    public static bool TryParse([NotNullWhen(true)] string? s, IFormatProvider? provider, [MaybeNullWhen(false)] out GpsCoordinate<T> result)
-    {
-        if (s is null)
-        {
-            result = None;
+    if (TryFromWkb(s, out latitude, out longitude)) {
+      result = new GpsCoordinate<T>(latitude, longitude);
 
-            return true;
-        }
-
-        return TryParse(s.AsSpan(), provider, out result);
+      return true;
     }
 
-    #endregion ISpanParsable<GpsCoordinate<T>>
+    if (TryFromValue(s, out latitude, out longitude)) {
+      result = new GpsCoordinate<T>(latitude, longitude);
 
-    #region Private Methods
+      return true;
+    }
 
-    private static T Distance(T latitudeA, T longitudeA, T latitudeB, T longitudeB) {
+    result = None;
+
+    return false;
+  }
+
+  /// <summary>
+  /// Parse a GPS coordinate from a string
+  /// </summary>
+  /// <param name="s"></param>
+  /// <param name="provider"></param>
+  /// <returns></returns>
+  public static GpsCoordinate<T> Parse(string s, IFormatProvider? provider) {
+    if (s is null) {
+      return None;
+    }
+
+    return Parse(s.AsSpan(), provider);
+  }
+
+  /// <summary>
+  /// Try to parse a GPS coordinate from a string
+  /// </summary>
+  /// <param name="s"></param>
+  /// <param name="provider"></param>
+  /// <param name="result"></param>
+  /// <returns></returns>
+  public static bool TryParse([NotNullWhen(true)] string? s, IFormatProvider? provider, [MaybeNullWhen(false)] out GpsCoordinate<T> result) {
+    if (s is null) {
+      result = None;
+
+      return true;
+    }
+
+    return TryParse(s.AsSpan(), provider, out result);
+  }
+
+  #endregion ISpanParsable<GpsCoordinate<T>>
+
+  #region Private Methods
+
+  private static T Distance(T latitudeA, T longitudeA, T latitudeB, T longitudeB) {
     var c180 = T.CreateSaturating(180.0);
     var c360 = T.CreateSaturating(360.0);
 
@@ -360,76 +376,67 @@ public readonly partial struct GpsCoordinate<T> :
   [GeneratedRegex(@"^\s*POINT\s*\(\s*(?<long>\S+)\s+(?<lat>\S+)\s*\)\s*$", RegexOptions.IgnoreCase, 1000)]
   private static partial Regex WktRegex();
 
-  private static bool TryFromWkt(string wkt, out T latitude, out T longitude)
-  {
-      latitude = T.NaN;
-      longitude = T.NaN;
+  private static bool TryFromWkt(string wkt, out T latitude, out T longitude) {
+    latitude = T.NaN;
+    longitude = T.NaN;
 
-      if ("POINT EMPTY".Equals(wkt, StringComparison.OrdinalIgnoreCase))
-      {
-          return true;
-      }
-
-      if (string.IsNullOrWhiteSpace(wkt))
-          return false;
-
-      var match = WktRegex().Match(wkt);
-
-      if (!match.Success)
-          return false;
-
-      if (!T.TryParse(match.Groups["long"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out longitude) ||
-          !T.TryParse(match.Groups["lat"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out latitude))
-      {
-          latitude = T.NaN;
-          longitude = T.NaN;
-
-          return false;
-      }
-
-      if (T.IsNaN(latitude) || T.IsNaN(longitude) || latitude is < -90 or > 90 || longitude is < -180 or > 180)
-      {
-          latitude = T.NaN;
-          longitude = T.NaN;
-
-          return false;
-      }
-
+    if ("POINT EMPTY".Equals(wkt, StringComparison.OrdinalIgnoreCase)) {
       return true;
-  }
+    }
 
-  private static bool TryFromWkb(string wkb, out T latitude, out T longitude)
-  {
+    if (string.IsNullOrWhiteSpace(wkt))
+      return false;
+
+    var match = WktRegex().Match(wkt);
+
+    if (!match.Success)
+      return false;
+
+    if (!T.TryParse(match.Groups["long"]?.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out longitude!) ||
+        !T.TryParse(match.Groups["lat"]?.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out latitude!)) {
       latitude = T.NaN;
       longitude = T.NaN;
 
       return false;
-  }
+    }
 
-  private static bool TryFromValue(string value, out T latitude, out T longitude)
-  {
+    if (latitude is null || longitude is null || T.IsNaN(latitude) || T.IsNaN(longitude) || latitude is < -90 or > 90 || longitude is < -180 or > 180) {
       latitude = T.NaN;
       longitude = T.NaN;
 
       return false;
+    }
+
+    return true;
   }
 
-  private static bool TryFromWkt(ReadOnlySpan<char> wkt, out T latitude, out T longitude)
-  {
-      return TryFromWkt(wkt.ToString(), out latitude, out longitude);
+  private static bool TryFromWkb(string wkb, out T latitude, out T longitude) {
+    latitude = T.NaN;
+    longitude = T.NaN;
+
+    return false;
   }
 
-  private static bool TryFromWkb(ReadOnlySpan<char> wkb, out T latitude, out T longitude)
-  {
-      return TryFromWkb(wkb.ToString(), out latitude, out longitude);
+  private static bool TryFromValue(string value, out T latitude, out T longitude) {
+    latitude = T.NaN;
+    longitude = T.NaN;
+
+    return false;
   }
 
-  private static bool TryFromValue(ReadOnlySpan<char> value, out T latitude, out T longitude)
-  {
-      return TryFromValue(value.ToString(), out latitude, out longitude);
+  private static bool TryFromWkt(ReadOnlySpan<char> wkt, out T latitude, out T longitude) {
+    return TryFromWkt(wkt.ToString(), out latitude, out longitude);
   }
 
-    
+  private static bool TryFromWkb(ReadOnlySpan<char> wkb, out T latitude, out T longitude) {
+    return TryFromWkb(wkb.ToString(), out latitude, out longitude);
+  }
 
-    #endregion Private Methods
+  private static bool TryFromValue(ReadOnlySpan<char> value, out T latitude, out T longitude) {
+    return TryFromValue(value.ToString(), out latitude, out longitude);
+  }
+
+
+
+  #endregion Private Methods
 }
