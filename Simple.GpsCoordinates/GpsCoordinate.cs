@@ -14,10 +14,17 @@ public readonly partial struct GpsCoordinate<T> :
     ISpanParsable<GpsCoordinate<T>>
 
     where T : IFloatingPointIeee754<T> {
-  /// <summary>
-  ///  Earth Diameter in meters taken from Azure SDK, not from NASA
-  /// </summary>
-  public static readonly T EarthDiameter = T.CreateSaturating(6378137.0 * 2.0);
+    #region Constants
+
+    /// <summary>
+    /// Earth Radius in meters taken from Azure SDK, not from NASA
+    /// </summary>
+    public static readonly T EarthRadius = T.CreateSaturating(6378137.0);
+
+    /// <summary>
+    /// Earth Diameter in meters taken from Azure SDK, not from NASA
+    /// </summary>
+    public static readonly T EarthDiameter = EarthRadius * T.CreateSaturating(2.0);
 
   /// <summary>
   /// Spatial Reference Identifier for GPS coordinates
@@ -29,12 +36,14 @@ public readonly partial struct GpsCoordinate<T> :
   /// </summary>
   public const int WkbType = 1;
 
-  #region Public Properties
+    #endregion Constants
 
-  /// <summary>
-  /// Latitude in degrees
-  /// </summary>
-  public T Latitude { get; }
+    #region Public Properties
+
+    /// <summary>
+    /// Latitude in degrees
+    /// </summary>
+    public T Latitude { get; }
 
   /// <summary>
   /// Longitude in degrees
@@ -216,7 +225,7 @@ public readonly partial struct GpsCoordinate<T> :
     public T BearingTo(GpsCoordinate<T> other)
     {
         // https://www.movable-type.co.uk/scripts/latlong.html#:~:text=const%20x%20%3D%20(%CE%BB2%2D,trigs%20%2B%202%20sqrts%20for%20haversine
-        T factor = T.Pi * T.CreateSaturating(180);
+        var factor = T.Pi * T.CreateSaturating(180);
 
       var dLambda = (Longitude - other.Longitude) * factor;
       
@@ -226,6 +235,38 @@ public readonly partial struct GpsCoordinate<T> :
 
       return T.Atan2(sinLambda * cosFi2, cosFi1 * sinFi2 - sinFi1 * cosFi2 * cosLambda);
   }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="other"></param>
+    /// <param name="fraction"></param>
+    /// <returns></returns>
+    public GpsCoordinate<T> Intermediate(GpsCoordinate<T> other, T fraction)
+    {
+        var factor = T.Pi * T.CreateSaturating(180);
+        var delta = DistanceTo(other) / EarthRadius;
+
+        var sinDelta = T.Sin(delta);
+
+        var a = T.Sin((T.One - fraction) * delta) / sinDelta;
+        var b = T.Sin(fraction * delta) / sinDelta;
+
+        var (sinFi1, cosFi1) = T.SinCos(Latitude * factor);
+        var (sinFi2, cosFi2) = T.SinCos(other.Latitude * factor);
+
+        var (sinLambda1, cosLambda1) = T.SinCos(Longitude * factor);
+        var (sinLambda2, cosLambda2) = T.SinCos(other.Longitude * factor);
+
+        var x = a * cosFi1 * cosLambda1 + b * cosFi2 * cosLambda2;
+        var y = a * cosFi1 * sinLambda1 + b * cosFi2 * sinLambda2;
+        var z = a * sinFi1 + b * sinFi2;
+
+        var fi = T.Atan2(z, T.Sqrt(x * x + y * y));
+        var lambda = T.Atan2(y, x);
+
+        return (fi / factor, lambda / factor);
+    }
 
   /// <summary>
   /// Convert the GPS coordinate to a string
