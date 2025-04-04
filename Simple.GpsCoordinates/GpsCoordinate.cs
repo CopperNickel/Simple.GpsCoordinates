@@ -29,7 +29,7 @@ public readonly partial struct GpsCoordinate<T> :
   /// </summary>
   public const int WkbType = 1;
 
-  #region Private Fields
+  #region Public Properties
 
   /// <summary>
   /// Latitude in degrees
@@ -41,14 +41,14 @@ public readonly partial struct GpsCoordinate<T> :
   /// </summary>
   public T Longitude { get; }
 
-  #endregion Private Fields
+  #endregion Public Properties
 
   #region Constructors
 
-  /// <summary>
-  /// A special value to represent an invalid coordinate
-  /// </summary>
-  public static GpsCoordinate<T> None { get; } = new(T.NaN, T.NaN);
+    /// <summary>
+    /// A special value to represent an invalid coordinate
+    /// </summary>
+    public static GpsCoordinate<T> None { get; } = new(T.NaN, T.NaN);
 
   /// <summary>
   /// Create a new GPS coordinate
@@ -195,17 +195,36 @@ public readonly partial struct GpsCoordinate<T> :
   /// Check if the coordinate is valid
   /// </summary>
   [JsonIgnore]
-  public readonly bool IsFinite => T.IsFinite(Latitude) && T.IsFinite(Longitude);
+  public bool IsFinite => T.IsFinite(Latitude) && T.IsFinite(Longitude);
 
   /// <summary>
   /// Calculate the distance between two GPS coordinates
   /// </summary>
   /// <param name="other">GPS coordinate to find distance to</param>
   /// <returns>Distance in meters</returns>
-  public readonly T DistanceTo(GpsCoordinate<T> other) {
+  public T DistanceTo(GpsCoordinate<T> other) {
     return !IsFinite || !other.IsFinite
         ? T.NaN
         : Distance(Latitude, Longitude, other.Latitude, other.Longitude);
+  }
+
+    /// <summary>
+    /// Calculate bearing (angle) between two GPS coordinates
+    /// </summary>
+    /// <param name="other">GPS coordinate to find angle to</param>
+    /// <returns>Angle (in radians) starting from North, counter clockwise</returns>
+    public T BearingTo(GpsCoordinate<T> other)
+    {
+        // https://www.movable-type.co.uk/scripts/latlong.html#:~:text=const%20x%20%3D%20(%CE%BB2%2D,trigs%20%2B%202%20sqrts%20for%20haversine
+        T factor = T.Pi * T.CreateSaturating(180);
+
+      var dLambda = (Longitude - other.Longitude) * factor;
+      
+      var (sinLambda, cosLambda) = T.SinCos(dLambda);
+      var (sinFi1, cosFi1) = T.SinCos(Latitude * factor);
+      var (sinFi2, cosFi2) = T.SinCos(other.Latitude * factor);
+
+      return T.Atan2(sinLambda * cosFi2, cosFi1 * sinFi2 - sinFi1 * cosFi2 * cosLambda);
   }
 
   /// <summary>
@@ -435,8 +454,6 @@ public readonly partial struct GpsCoordinate<T> :
   private static bool TryFromValue(ReadOnlySpan<char> value, out T latitude, out T longitude) {
     return TryFromValue(value.ToString(), out latitude, out longitude);
   }
-
-
 
   #endregion Private Methods
 }
